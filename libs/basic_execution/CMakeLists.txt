@@ -7,7 +7,6 @@
 cmake_minimum_required(VERSION 3.3.2 FATAL_ERROR)
 
 set(basic_execution_headers
-  hpx/basic_execution.hpp
   hpx/basic_execution/agent_base.hpp
   hpx/basic_execution/agent_ref.hpp
   hpx/basic_execution/context_base.hpp
