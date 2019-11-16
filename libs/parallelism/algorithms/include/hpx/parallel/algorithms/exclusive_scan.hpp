@@ -24,6 +24,7 @@
 #include <hpx/parallel/util/projection_identity.hpp>
 #include <hpx/parallel/util/scan_partitioner.hpp>
 #include <hpx/parallel/util/zip_iterator.hpp>
+#include <hpx/parallel/util/tracepoints.h>
 #include <hpx/type_support/unused.hpp>
 
 #include <algorithm>
@@ -120,19 +121,24 @@ namespace hpx { namespace parallel { inline namespace v1 {
                 using hpx::get;
                 using hpx::util::make_zip_iterator;
 
-                auto f3 = [op](zip_iterator part_begin, std::size_t part_size,
+                auto f3 = [dest, op](zip_iterator part_begin, std::size_t part_size,
                               hpx::shared_future<T> curr,
                               hpx::shared_future<T> next) {
                     next.get();    // rethrow exceptions
 
                     T val = curr.get();
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
-                    *dst++ = val;
+                    auto start_point = std::distance(dest, dst);
+                    hpx::parallel::util::logchunk(3, start_point, start_point + part_size,
+                             hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                        [&](){
+                            *dst++ = val;
 
-                    // MSVC 2015 fails if op is captured by reference
-                    util::loop_n<ExPolicy>(
-                        dst, part_size - 1, [=, &val](FwdIter2 it) {
-                            *it = hpx::util::invoke(op, val, *it);
+                            // MSVC 2015 fails if op is captured by reference
+                            util::loop_n<ExPolicy>(
+                                dst, part_size - 1, [=, &val](FwdIter2 it) {
+                                                        *it = hpx::util::invoke(op, val, *it);
+                                                    });
                         });
                 };
 
@@ -140,21 +146,43 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     std::forward<ExPolicy>(policy),
                     make_zip_iterator(first, dest), count, init,
                     // step 1 performs first part of scan algorithm
-                    [op, last](
+                    [op, last, first](
                         zip_iterator part_begin, std::size_t part_size) -> T {
+                        auto start_point = std::distance(first, get<0>(part_begin.get_iterator_tuple()));
                         T part_init = get<0>(*part_begin++);
 
                         auto iters = part_begin.get_iterator_tuple();
                         if (get<0>(iters) != last)
                         {
-                            return sequential_exclusive_scan_n(get<0>(iters),
-                                part_size - 1, get<1>(iters), part_init, op);
+                            decltype(sequential_exclusive_scan_n(
+                                get<0>(iters),
+                                part_size - 1,
+                                get<1>(iters),
+                                part_init, op)) result;
+                            util::logchunk(1, start_point, start_point + part_size,
+                                     hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                                     [&](){
+                            result = sequential_exclusive_scan_n(
+                                get<0>(iters),
+                                part_size - 1,
+                                get<1>(iters),
+                                part_init, op);
+                                    });
+                        return result;
                         }
                         return part_init;
                     },
                     // step 2 propagates the partition results from left
                     // to right
-                    hpx::util::unwrapping(op),
+                    [op](hpx::shared_future<T> a, hpx::shared_future<T> b)
+                    {
+                        T result;
+                        util::logstage2(hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                                 [&](){
+                                     result = hpx::util::invoke(op, a.get(), b.get());
+                                 });
+                        return result;
+                    },
                     // step 3 runs final accumulation on each partition
                     std::move(f3),
                     // step 4 use this return value
