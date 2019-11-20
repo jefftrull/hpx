@@ -77,8 +77,7 @@
 // handle [[fallthrough]]
 #if defined(HPX_HAVE_CXX17_FALLTHROUGH_ATTRIBUTE)
 #   define HPX_FALLTHROUGH [[fallthrough]]
-#elif defined(HPX_GCC_VERSION) && (HPX_GCC_VERSION >= 70000) && \
-     !defined(HPX_INTEL_VERSION)
+#elif defined(HPX_GCC_VERSION) && (HPX_GCC_VERSION >= 70000)
 #   define HPX_FALLTHROUGH __attribute__((fallthrough))
 #elif defined(HPX_CLANG_VERSION)
 // All versions of clang supported by HPX have the [[clang::fallthrough]]
