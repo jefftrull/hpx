@@ -55,9 +55,11 @@ TRACEPOINT_EVENT(
     HPX,
     stage2,
     TP_ARGS(
+        std::size_t, loc,
         int, prio
     ),
     TP_FIELDS(
+        ctf_integer(std::size_t, loc, loc)
         ctf_integer(int, prio, prio)
     )
 )
@@ -78,14 +80,14 @@ void logchunk(int stage, std::size_t start, std::size_t stop, int prio, F const 
 }
 
 template<typename F>
-void logstage2(int prio, F const & f)
+void logstage2(std::size_t loc, int prio, F const & f)
 {
     f();
 
 #ifdef __linux__
     // stage 2 is a single op so should be very small
     // makes more sense as a point event
-    tracepoint(HPX, stage2, prio);
+    tracepoint(HPX, stage2, loc, prio);
 #endif
 }
 

@@ -123,7 +123,7 @@ namespace hpx { namespace parallel { namespace util {
                             first_, count_ - count, workitems[0], curr));
 
                         workitems[1] =
-                            dataflow(hpx::launch::sync, f2, workitems[0], curr);
+                            dataflow(hpx::launch::sync, f2, first_, workitems[0], curr);
                     }
                     else
                     {
@@ -148,7 +148,7 @@ namespace hpx { namespace parallel { namespace util {
                             hpx::launch::sync, f3, it, size, prev, curr));
 
                         workitems.push_back(
-                            dataflow(hpx::launch::sync, f2, prev, curr));
+                            dataflow(hpx::launch::sync, f2, it, prev, curr));
                     }
 
                     scoped_params.mark_end_of_scheduling();

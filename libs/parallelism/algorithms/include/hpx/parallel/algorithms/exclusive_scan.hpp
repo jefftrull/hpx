@@ -174,10 +174,13 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     },
                     // step 2 propagates the partition results from left
                     // to right
-                    [op](hpx::shared_future<T> a, hpx::shared_future<T> b)
+                    [op, first](zip_iterator part_divider, hpx::shared_future<T> a, hpx::shared_future<T> b)
                     {
+                        auto loc = std::distance(first, get<0>(part_divider.get_iterator_tuple()));
+
                         T result;
-                        util::logstage2(hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                        util::logstage2(loc,
+                                        hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
                                  [&](){
                                      result = hpx::util::invoke(op, a.get(), b.get());
                                  });
