@@ -123,7 +123,7 @@ namespace hpx { namespace parallel { namespace util {
                             first_, count_ - count, workitems[0], curr));
 
                         workitems[1] =
-                            dataflow(hpx::launch::sync, f2, first_, workitems[0], curr);
+                            dataflow(hpx::launch::sync, f2, first_ + (count_ - count), workitems[0], curr);
                     }
                     else
                     {
@@ -147,8 +147,11 @@ namespace hpx { namespace parallel { namespace util {
                         finalitems.push_back(dataflow(
                             hpx::launch::sync, f3, it, size, prev, curr));
 
+                        // f2 "sums" the result of the current partition with the result of the previous
+                        // and as such is represented as occurring at the end of this partition
+                        // it provides an input to the partition following it
                         workitems.push_back(
-                            dataflow(hpx::launch::sync, f2, it, prev, curr));
+                            dataflow(hpx::launch::sync, f2, it + size, prev, curr));
                     }
 
                     scoped_params.mark_end_of_scheduling();
