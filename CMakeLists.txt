@@ -685,7 +685,7 @@ endif()
 # ##############################################################################
 # Utility configuration
 # ##############################################################################
-set(HPX_HIDDEN_VISIBILITY_DEFAULT ON)
+set(HPX_HIDDEN_VISIBILITY_DEFAULT OFF)
 if(CMAKE_COMPILER_IS_GNUCXX)
   if("${HPX_PLATFORM_UC}" STREQUAL "ANDROID")
     set(HPX_HIDDEN_VISIBILITY_DEFAULT OFF)

@@ -10,6 +10,7 @@
 #define TRACEPOINT_INCLUDE <hpx/parallel/util/tracepoints.h>
 
 #if !defined(_HPX_TRACEPOINTS_H) || defined(TRACEPOINT_HEADER_MULTI_READ)
+#define _HPX_TRACEPOINTS_H
 
 #include <lttng/tracepoint.h>
 
@@ -64,37 +65,9 @@ TRACEPOINT_EVENT(
     )
 )
 
-#ifndef _HPX_TRACEPOINTS_H
 
-namespace hpx { namespace parallel { namespace util {
-template<typename F>
-void logchunk(int stage, std::size_t start, std::size_t stop, int prio, F const & f)
-{
-#ifdef __linux__
-    tracepoint(HPX, chunk_start, start, stop, stage, prio);
-    f();
-    tracepoint(HPX, chunk_stop, start, stop, stage, prio);
-#else
-    f();
-#endif
-}
 
-template<typename F>
-void logstage2(std::size_t loc, int prio, F const & f)
-{
-    f();
 
-#ifdef __linux__
-    // stage 2 is a single op so should be very small
-    // makes more sense as a point event
-    tracepoint(HPX, stage2, loc, prio);
-#endif
-}
-
-}}}
-
-#define _HPX_TRACEPOINTS_H
-#endif // _HPX_TRACEPOINTS_H
 
 #endif // !defined(_HPX_TRACEPOINTS_H) || ...
 
