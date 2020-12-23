@@ -40,7 +40,7 @@ set(schedulers_compat_headers
 )
 # cmake-format: on
 
-set(schedulers_sources deadlock_detection.cpp maintain_queue_wait_times.cpp tracepoints.cpp)
+set(schedulers_sources deadlock_detection.cpp maintain_queue_wait_times.cpp)
 
 include(HPX_AddModule)
 add_hpx_module(
@@ -58,7 +58,6 @@ add_hpx_module(
     hpx_functional
     hpx_logging
     hpx_threading_base
-    hpx_algorithms
-    lttng-ust dl
+    hpx_debugging
   CMAKE_SUBDIRS examples tests
 )

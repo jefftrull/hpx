@@ -7,7 +7,7 @@
 #define TRACEPOINT_PROVIDER HPX
 
 #undef TRACEPOINT_INCLUDE
-#define TRACEPOINT_INCLUDE <hpx/parallel/util/tracepoints.h>
+#define TRACEPOINT_INCLUDE <hpx/debugging/tracepoints.h>
 
 #if !defined(_HPX_TRACEPOINTS_H) || defined(TRACEPOINT_HEADER_MULTI_READ)
 #define _HPX_TRACEPOINTS_H

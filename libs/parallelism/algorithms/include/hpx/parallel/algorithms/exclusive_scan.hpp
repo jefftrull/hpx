@@ -24,7 +24,7 @@
 #include <hpx/parallel/util/projection_identity.hpp>
 #include <hpx/parallel/util/scan_partitioner.hpp>
 #include <hpx/parallel/util/zip_iterator.hpp>
-#include <hpx/parallel/util/tracepoints.h>
+#include <hpx/debugging/tracepoints.h>
 #include <hpx/type_support/unused.hpp>
 
 #include <algorithm>
@@ -157,7 +157,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
                     auto start_point = std::distance(dest, dst);
                     hpx::parallel::util::logchunk(3, start_point, start_point + part_size,
-                             hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                                                  int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                         [&](){
                             *dst++ = val;
 
@@ -187,7 +187,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
                                 get<1>(iters),
                                 part_init, op)) result;
                             util::logchunk(1, start_point, start_point + part_size,
-                                     hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                                           int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                                      [&](){
                             result = sequential_exclusive_scan_n(
                                 get<0>(iters),
@@ -207,7 +207,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
 
                         T result;
                         util::logstage2(loc,
-                                        hpx::threads::get_thread_priority(hpx::threads::get_self_id()),
+                                        int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                                  [&](){
                                      result = hpx::util::invoke(op, a.get(), b.get());
                                  });

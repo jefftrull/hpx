@@ -24,7 +24,7 @@
 #include <hpx/parallel/util/detail/handle_local_exceptions.hpp>
 #include <hpx/parallel/util/detail/scoped_executor_parameters.hpp>
 #include <hpx/parallel/util/detail/select_partitioner.hpp>
-#include <hpx/parallel/util/tracepoints.h>
+#include <hpx/debugging/tracepoints.h>
 
 #include <algorithm>
 #include <cstddef>

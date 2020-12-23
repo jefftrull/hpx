@@ -19,7 +19,7 @@ set(debugging_compat_headers
 )
 # cmake-format: on
 
-set(debugging_sources attach_debugger.cpp backtrace.cpp print.cpp)
+set(debugging_sources attach_debugger.cpp backtrace.cpp print.cpp tracepoints.cpp)
 
 include(HPX_AddModule)
 add_hpx_module(
@@ -32,4 +32,6 @@ add_hpx_module(
   DEPENDENCIES ASIO::standalone_asio
   MODULE_DEPENDENCIES hpx_config
   CMAKE_SUBDIRS examples tests
+  DEPENDENCIES
+    lttng-ust dl
 )

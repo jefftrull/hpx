@@ -22,7 +22,7 @@
 #include <hpx/threading_base/thread_num_tss.hpp>
 #include <hpx/threading_base/thread_queue_init_parameters.hpp>
 #include <hpx/topology/topology.hpp>
-#include <hpx/parallel/util/tracepoints.h>
+#include <hpx/debugging/tracepoints.h>
 
 #include <atomic>
 #include <cmath>
