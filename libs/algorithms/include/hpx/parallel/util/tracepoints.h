@@ -66,8 +66,35 @@ TRACEPOINT_EVENT(
 )
 
 
+TRACEPOINT_EVENT(
+    HPX,
+    tasks_created,
+    TP_ARGS(),
+    TP_FIELDS()
+)
 
+// scheduling info
+TRACEPOINT_EVENT(
+    HPX,
+    thread_create_normalprio,
+    TP_ARGS(
+        std::size_t, num
+    ),
+    TP_FIELDS(
+        ctf_integer(std::size_t, num, num)
+    )
+)
 
+TRACEPOINT_EVENT(
+    HPX,
+    thread_create_highprio,
+    TP_ARGS(
+        std::size_t, num
+    ),
+    TP_FIELDS(
+        ctf_integer(std::size_t, num, num)
+    )
+)
 
 #endif // !defined(_HPX_TRACEPOINTS_H) || ...
 
