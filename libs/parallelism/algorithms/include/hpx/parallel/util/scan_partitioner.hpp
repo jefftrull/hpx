@@ -81,12 +81,34 @@ namespace hpx { namespace parallel { namespace util {
                 HPX_ASSERT(false);
                 return R();
 #else
+                std::size_t const ncores = execution::processing_units_count(
+                    policy.parameters(), policy.executor());
+
                 // inform parameter traits
                 scoped_executor_parameters scoped_params(
                     policy.parameters(), policy.executor());
 
-                std::vector<hpx::shared_future<Result1>> workitems;
-                std::vector<hpx::future<Result2>> finalitems;
+                // construct a single function incorporating f1, f2, and f3
+                auto f123 = [f1, f2, f3]
+                    (hpx::future<Result1> prev,
+                     hpx::lcos::local::promise<Result1> && next,
+                     FwdIter it, std::size_t size)
+                {
+                    // do the first stage
+                    Result1 curr = hpx::util::invoke(f1, it, size);
+
+                    // *wait* for the previous results
+                    Result1 init = prev.get();
+
+                    // signal next chunk to proceed
+                    next.set_value(hpx::util::invoke(f2, it + size, init, curr));
+
+                    // run the final stage
+                    return f3(it, size, init);
+                };
+
+                std::vector<hpx::future<Result1>> workitems;
+                std::vector<hpx::shared_future<Result2>> finalitems;
                 std::list<std::exception_ptr> errors;
                 try
                 {
@@ -119,12 +141,21 @@ namespace hpx { namespace parallel { namespace util {
                         workitems.reserve(size + 2);
                         finalitems.reserve(size + 1);
 
-                        hpx::shared_future<Result1> curr = workitems[1];
-                        finalitems.push_back(dataflow(hpx::launch::sync, f3,
-                            first_, count_ - count, workitems[0], curr));
+                        hpx::shared_future<Result1> curr = workitems[1].share();
+                        finalitems.push_back(dataflow(hpx::launch::sync,
+                                                      [=](hpx::shared_future<Result1>){
+                                                          hpx::util::invoke(f3, first_,
+                                                                            count_ - count, init);
+                                                      },
+                                                      curr));   // wait for f1
 
                         workitems[1] =
-                            dataflow(hpx::launch::sync, f2, first_ + (count_ - count), workitems[0], curr);
+                            dataflow(hpx::launch::sync,
+                                     [=](hpx::shared_future<Result1> curr){
+                                         return hpx::util::invoke(f2, first_ + (count_ - count),
+                                                                  init, curr.get());
+                                     },
+                                     curr);
                     }
                     else
                     {
@@ -135,24 +166,39 @@ namespace hpx { namespace parallel { namespace util {
                     // Schedule first step of scan algorithm, step 2 is
                     // performed as soon as the current partition and the
                     // partition to the left is ready.
+                    std::size_t chunkno = 0;
                     for (auto const& elem : shape)
                     {
                         FwdIter it = hpx::get<0>(elem);
                         std::size_t size = hpx::get<1>(elem);
 
-                        hpx::shared_future<Result1> prev = workitems.back();
-                        auto curr = execution::async_execute(
-                            policy.executor(), f1, it, size)
-                                        .share();
-
-                        finalitems.push_back(dataflow(
-                            hpx::launch::sync, f3, it, size, prev, curr));
-
-                        // f2 "sums" the result of the current partition with the result of the previous
-                        // and as such is represented as occurring at the end of this partition
-                        // it provides an input to the partition following it
-                        workitems.push_back(
-                            dataflow(hpx::launch::sync, f2, it + size, prev, curr));
+                        hpx::lcos::local::promise<Result1> next_p;
+                        hpx::future<Result1> next = next_p.get_future();
+                        if (chunkno < ncores) {
+                            finalitems.push_back(
+                                execution::async_execute(
+                                    policy.executor(), f123, std::move(workitems.back()),
+                                    std::move(next_p), it, size));
+                        } else {
+                            finalitems.push_back(
+                                dataflow(hpx::launch::sync,
+                                         [f123,
+                                          // bind prev so dataflow doesn't wait for it
+                                          prev = std::move(workitems.back())]
+                                         (hpx::shared_future<Result2>, // throttle
+                                          hpx::lcos::local::promise<Result1> && next_p,
+                                          FwdIter it, std::size_t size) mutable
+                                         {
+                                             return hpx::util::invoke(f123, std::move(prev),
+                                                                      std::move(next_p), it, size);
+                                         },
+                                         finalitems[chunkno - ncores],  // throttle
+                                         std::move(next_p),             // next
+                                         it, size));
+                        }
+                        workitems.push_back(std::move(next));
+                        chunkno++;
+                    }
                     }
 
                     scoped_params.mark_end_of_scheduling();
@@ -314,10 +360,12 @@ namespace hpx { namespace parallel { namespace util {
             }
 
         private:
-            template <typename F>
+            template <typename F, typename R1, typename R2,
+                      template<typename> class WorkFut,
+                      template<typename> class FinalFut>
             static R reduce(
-                std::vector<hpx::shared_future<Result1>>&& workitems,
-                std::vector<hpx::future<Result2>>&& finalitems,
+                std::vector<WorkFut<R1>>&& workitems,
+                std::vector<FinalFut<R2>>&& finalitems,
                 std::list<std::exception_ptr>&& errors, F&& f)
             {
 #if defined(HPX_COMPUTE_DEVICE_CODE)

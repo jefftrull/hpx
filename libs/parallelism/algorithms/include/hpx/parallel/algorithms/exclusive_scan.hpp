@@ -149,11 +149,8 @@ namespace hpx { namespace parallel { inline namespace v1 {
                 using hpx::util::make_zip_iterator;
 
                 auto f3 = [dest, op](zip_iterator part_begin, std::size_t part_size,
-                              hpx::shared_future<T> curr,
-                              hpx::shared_future<T> next) {
-                    next.get();    // rethrow exceptions
+                                     T val) {
 
-                    T val = curr.get();
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
                     auto start_point = std::distance(dest, dst);
                     hpx::parallel::util::logchunk(3, start_point, start_point + part_size,
@@ -201,7 +198,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     },
                     // step 2 propagates the partition results from left
                     // to right
-                    [op, first](zip_iterator part_divider, hpx::shared_future<T> a, hpx::shared_future<T> b)
+                    [op, first](zip_iterator part_divider, T a, T b)
                     {
                         auto loc = std::distance(first, get<0>(part_divider.get_iterator_tuple()));
 
@@ -209,15 +206,15 @@ namespace hpx { namespace parallel { inline namespace v1 {
                         util::logstage2(loc,
                                         int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                                  [&](){
-                                     result = hpx::util::invoke(op, a.get(), b.get());
+                                     result = hpx::util::invoke(op, a, b);
                                  });
                         return result;
                     },
                     // step 3 runs final accumulation on each partition
                     std::move(f3),
                     // step 4 use this return value
-                    [final_dest](std::vector<hpx::shared_future<T>>&&,
-                        std::vector<hpx::future<void>>&&) {
+                    [final_dest](std::vector<hpx::future<T>>&&,
+                        std::vector<hpx::shared_future<void>>&&) {
                         return final_dest;
                     });
             }
