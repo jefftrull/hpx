@@ -16,6 +16,7 @@
 #include <hpx/pack_traversal/unwrap.hpp>
 
 #include <hpx/executors/execution_policy.hpp>
+#include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/detail/dispatch.hpp>
 #include <hpx/parallel/algorithms/inclusive_scan.hpp>
 #include <hpx/parallel/util/detail/algorithm_result.hpp>
@@ -151,18 +152,13 @@ namespace hpx { namespace parallel { inline namespace v1 {
                 auto f3 = [dest, op](zip_iterator part_begin, std::size_t part_size,
                                      T val) {
 
+                    FwdIter1 src = get<0>(part_begin.get_iterator_tuple());
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
                     auto start_point = std::distance(dest, dst);
                     hpx::parallel::util::logchunk(3, start_point, start_point + part_size,
                                                   int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                         [&](){
-                            *dst++ = val;
-
-                            // MSVC 2015 fails if op is captured by reference
-                            util::loop_n<ExPolicy>(
-                                dst, part_size - 1, [=, &val](FwdIter2 it) {
-                                                        *it = hpx::util::invoke(op, val, *it);
-                                                    });
+                            sequential_exclusive_scan_n(src, part_size, dst, val, op);
                         });
                 };
 
@@ -173,28 +169,23 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     [op, last, first](
                         zip_iterator part_begin, std::size_t part_size) -> T {
                         auto start_point = std::distance(first, get<0>(part_begin.get_iterator_tuple()));
-                        T part_init = get<0>(*part_begin++);
-
                         auto iters = part_begin.get_iterator_tuple();
                         if (get<0>(iters) != last)
                         {
-                            decltype(sequential_exclusive_scan_n(
-                                get<0>(iters),
-                                part_size - 1,
-                                get<1>(iters),
-                                part_init, op)) result;
+                            decltype(hpx::reduce(hpx::execution::seq,
+                                                 get<0>(iters),
+                                                 get<0>(iters) + part_size,
+                                                 T{}, op)) result;
                             util::logchunk(1, start_point, start_point + part_size,
                                            int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
                                      [&](){
-                            result = sequential_exclusive_scan_n(
-                                get<0>(iters),
-                                part_size - 1,
-                                get<1>(iters),
-                                part_init, op);
+                                         result = hpx::reduce(hpx::execution::seq,
+                                                            get<0>(iters), get<0>(iters) + part_size,
+                                                              T{}, op);
                                     });
                         return result;
                         }
-                        return part_init;
+                        return T{};
                     },
                     // step 2 propagates the partition results from left
                     // to right
