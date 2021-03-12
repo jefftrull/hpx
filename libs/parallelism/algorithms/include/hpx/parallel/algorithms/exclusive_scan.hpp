@@ -25,7 +25,6 @@
 #include <hpx/parallel/util/projection_identity.hpp>
 #include <hpx/parallel/util/scan_partitioner.hpp>
 #include <hpx/parallel/util/zip_iterator.hpp>
-#include <hpx/debugging/tracepoints.h>
 #include <hpx/type_support/unused.hpp>
 
 #include <algorithm>
@@ -35,34 +34,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-namespace hpx { namespace parallel { namespace util {
-template<typename F>
-typename std::result_of_t<F()>
-logchunk(int stage, std::size_t start, std::size_t stop, int prio, F const & f)
-{
-#ifdef __linux__
-    tracepoint(HPX, chunk_start, start, stop, stage, prio);
-    return f();
-    tracepoint(HPX, chunk_stop, start, stop, stage, prio);
-#else
-    return f();
-#endif
-}
-
-template<typename F>
-void logstage2(std::size_t loc, int prio, F const & f)
-{
-    f();
-
-#ifdef __linux__
-    // stage 2 is a single op so should be very small
-    // makes more sense as a point event
-    tracepoint(HPX, stage2, loc, prio);
-#endif
-}
-
-}}}
 
 namespace hpx { namespace parallel { inline namespace v1 {
     ///////////////////////////////////////////////////////////////////////////
@@ -155,13 +126,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
 
                     FwdIter1 src = get<0>(part_begin.get_iterator_tuple());
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
-                    auto start_point = std::distance(dest, dst);
-                    return
-                    hpx::parallel::util::logchunk(3, start_point, start_point + part_size,
-                                                  int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
-                        [=](){
-                            return sequential_exclusive_scan_n(src, part_size, dst, val, op);
-                        });
+                    return sequential_exclusive_scan_n(src, part_size, dst, val, op);
                 };
 
                 return util::scan_partitioner<ExPolicy, FwdIter2, T, T>::call(
@@ -170,22 +135,12 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     // step 1 performs first part of scan algorithm
                     [op, last, first](
                         zip_iterator part_begin, std::size_t part_size, T init = T{}) -> T {
-                        auto start_point = std::distance(first, get<0>(part_begin.get_iterator_tuple()));
                         auto iters = part_begin.get_iterator_tuple();
                         if (get<0>(iters) != last)
                         {
-                            decltype(hpx::reduce(hpx::execution::seq,
-                                                 get<0>(iters),
-                                                 get<0>(iters) + part_size,
-                                                 T{}, op)) result;
-                            util::logchunk(1, start_point, start_point + part_size,
-                                           int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
-                                           [=, &result](){
-                                         result = hpx::reduce(hpx::execution::seq,
-                                                            get<0>(iters), get<0>(iters) + part_size,
-                                                              T{}, op);
-                                    });
-                        return result;
+                            return hpx::reduce(hpx::execution::seq,
+                                               get<0>(iters), get<0>(iters) + part_size,
+                                               T{}, op);
                         }
                         return T{};
                     },
@@ -193,15 +148,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     // to right
                     [op, first](zip_iterator part_divider, T a, T b)
                     {
-                        auto loc = std::distance(first, get<0>(part_divider.get_iterator_tuple()));
-
-                        T result;
-                        util::logstage2(loc,
-                                        int(hpx::threads::get_thread_priority(hpx::threads::get_self_id())),
-                                        [=, &result](){
-                                     result = hpx::util::invoke(op, a, b);
-                                 });
-                        return result;
+                        return hpx::util::invoke(op, a, b);
                     },
                     // step 3 runs final accumulation on each partition
                     std::move(f3),

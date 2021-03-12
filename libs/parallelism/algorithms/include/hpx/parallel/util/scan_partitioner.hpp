@@ -24,7 +24,6 @@
 #include <hpx/parallel/util/detail/handle_local_exceptions.hpp>
 #include <hpx/parallel/util/detail/scoped_executor_parameters.hpp>
 #include <hpx/parallel/util/detail/select_partitioner.hpp>
-#include <hpx/debugging/tracepoints.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -233,7 +232,6 @@ namespace hpx { namespace parallel { namespace util {
                         workitems.push_back(std::move(next));
                         chunkno++;
                     }
-                    }
 
                     scoped_params.mark_end_of_scheduling();
                 }
@@ -242,7 +240,6 @@ namespace hpx { namespace parallel { namespace util {
                     handle_local_exceptions::call(
                         std::current_exception(), errors);
                 }
-                tracepoint(HPX, tasks_created);
                 return reduce(std::move(workitems), std::move(finalitems),
                     std::move(errors), std::forward<F4>(f4));
 #endif

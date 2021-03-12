@@ -22,7 +22,6 @@
 #include <hpx/threading_base/thread_num_tss.hpp>
 #include <hpx/threading_base/thread_queue_init_parameters.hpp>
 #include <hpx/topology/topology.hpp>
-#include <hpx/debugging/tracepoints.h>
 
 #include <atomic>
 #include <cmath>
@@ -542,7 +541,6 @@ namespace hpx { namespace threads { namespace policies {
                 }
                 std::size_t num = num_thread % num_high_priority_queues_;
 
-                tracepoint(HPX, thread_create_highprio, num);
                 high_priority_queues_[num].data_->create_thread(data, id, ec);
                 return;
             }
@@ -554,7 +552,6 @@ namespace hpx { namespace threads { namespace policies {
             }
 
             HPX_ASSERT(num_thread < num_queues_);
-            tracepoint(HPX, thread_create_normalprio, num_thread);
             queues_[num_thread].data_->create_thread(data, id, ec);
         }
 
