@@ -94,17 +94,26 @@ namespace hpx { namespace parallel { namespace util {
                      hpx::lcos::local::promise<Result1> && next,
                      FwdIter it, std::size_t size)
                 {
-                    // do the first stage
-                    Result1 curr = hpx::util::invoke(f1, it, size);
+                    if (prev.is_ready())
+                    {
+                        Result1 init = prev.get();
+                        Result2 curr = hpx::util::invoke(f3, it, size, init);
+                        next.set_value(curr);
+                        return curr;
+                    } else {
+                        // do the first stage
+                        Result1 curr = hpx::util::invoke(f1, it, size);
 
-                    // *wait* for the previous results
-                    Result1 init = prev.get();
+                        // *wait* for the previous results
+                        Result1 init = prev.get();
 
-                    // signal next chunk to proceed
-                    next.set_value(hpx::util::invoke(f2, it + size, init, curr));
+                        // signal next chunk to proceed
+                        next.set_value(hpx::util::invoke(f2, it + size, init, curr));
 
-                    // run the final stage
-                    return f3(it, size, init);
+                        // run the final stage
+                        return hpx::util::invoke(f3, it, size, init);
+                    }
+
                 };
 
                 std::vector<hpx::future<Result1>> workitems;
@@ -114,7 +123,7 @@ namespace hpx { namespace parallel { namespace util {
                 {
                     // pre-initialize first intermediate result
                     workitems.push_back(
-                        make_ready_future(std::forward<T>(init)));
+                        make_ready_future(Result1{}));  // we will use init directly
 
                     HPX_ASSERT(count > 0);
                     FwdIter first_ = first;
@@ -124,8 +133,19 @@ namespace hpx { namespace parallel { namespace util {
                     typedef typename execution::extract_has_variable_chunk_size<
                         parameters_type>::type has_variable_chunk_size;
 
+                    // special case first chunk
+                    // because the "previous" chunk's result is just the init value,
+                    // we can just run stage 3
+                    auto f3_1 =
+                        [=](FwdIter f, std::size_t c)
+                        {
+                            // since this is a first chunk, incorporate init here
+                            Result1 r = hpx::util::invoke(f3, f, c, init);
+                            return r;
+                        };
+
                     auto shape = detail::get_bulk_iteration_shape(
-                        has_variable_chunk_size(), policy, workitems, f1, first,
+                        has_variable_chunk_size(), policy, workitems, f3_1, first,
                         count, 1);
 
                     // schedule every chunk on a separate thread
@@ -141,32 +161,45 @@ namespace hpx { namespace parallel { namespace util {
                         workitems.reserve(size + 2);
                         finalitems.reserve(size + 1);
 
-                        hpx::shared_future<Result1> curr = workitems[1].share();
-                        finalitems.push_back(dataflow(hpx::launch::sync,
-                                                      [=](hpx::shared_future<Result1>){
-                                                          hpx::util::invoke(f3, first_,
-                                                                            count_ - count, init);
-                                                      },
-                                                      curr));   // wait for f1
+                        // the third stage has run alone and produced its result
+                        // to continue normally we need to take this single value and
+                        // make two futures from it
+                        Result1 curr = workitems.back().get();
+                        finalitems.push_back(make_ready_future<Result2>(curr).share());
 
-                        workitems[1] =
-                            dataflow(hpx::launch::sync,
-                                     [=](hpx::shared_future<Result1> curr){
-                                         return hpx::util::invoke(f2, first_ + (count_ - count),
-                                                                  init, curr.get());
-                                     },
-                                     curr);
+                        // per HPX docs calling get() or share() invalidates a future
+                        // so we recreate the workitem
+                        workitems.back() = make_ready_future<Result1>(curr);
                     }
                     else
                     {
                         workitems.reserve(size + 1);
                         finalitems.reserve(size);
+
+                        // special-case first chunk
+
+                        // remove it from shape list
+                        auto shape_begin = std::begin(shape);
+                        FwdIter it = hpx::get<0>(*shape_begin);
+                        std::size_t size = hpx::get<1>(*shape_begin);
+                        shape = hpx::util::make_iterator_range(std::next(shape_begin),
+                                                               std::end(shape));
+
+                        // run just the third stage
+                        hpx::shared_future<Result1> f3_f =
+                            execution::async_execute(
+                                policy.executor(), f3_1, it, size).share();
+                        finalitems.push_back(f3_f);
+
+                        // copy result for use as next chunk input
+                        // in place of stage 1 result
+                        workitems.push_back(make_future<Result1>(f3_f));
                     }
 
                     // Schedule first step of scan algorithm, step 2 is
                     // performed as soon as the current partition and the
                     // partition to the left is ready.
-                    std::size_t chunkno = 0;
+                    std::size_t chunkno = 1;   // we already did the first chunk
                     for (auto const& elem : shape)
                     {
                         FwdIter it = hpx::get<0>(elem);
@@ -175,6 +208,7 @@ namespace hpx { namespace parallel { namespace util {
                         hpx::lcos::local::promise<Result1> next_p;
                         hpx::future<Result1> next = next_p.get_future();
                         if (chunkno < ncores) {
+                            // we want to initially launch as many tasks as there are cores
                             finalitems.push_back(
                                 execution::async_execute(
                                     policy.executor(), f123, std::move(workitems.back()),
