@@ -107,7 +107,7 @@ namespace hpx { namespace parallel { namespace util {
                         Result1 init = prev.get();
 
                         // signal next chunk to proceed
-                        next.set_value(hpx::util::invoke(f2, it + size, init, curr));
+                        next.set_value(hpx::util::invoke(f2, init, curr));
 
                         // run the final stage
                         return hpx::util::invoke(f3, it, size, init);
@@ -126,7 +126,6 @@ namespace hpx { namespace parallel { namespace util {
 
                     HPX_ASSERT(count > 0);
                     FwdIter first_ = first;
-                    std::size_t count_ = count;
 
                     // estimate a chunk size based on number of cores used
                     typedef typename execution::extract_has_variable_chunk_size<
@@ -155,8 +154,6 @@ namespace hpx { namespace parallel { namespace util {
                     // start f3.
                     if (workitems.size() == 2)
                     {
-                        HPX_ASSERT(count_ > count);
-
                         workitems.reserve(size + 2);
                         finalitems.reserve(size + 1);
 

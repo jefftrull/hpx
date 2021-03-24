@@ -121,8 +121,8 @@ namespace hpx { namespace parallel { inline namespace v1 {
                 using hpx::get;
                 using hpx::util::make_zip_iterator;
 
-                auto f3 = [dest, op](zip_iterator part_begin, std::size_t part_size,
-                                     T val) {
+                auto f3 = [op](zip_iterator part_begin, std::size_t part_size,
+                               T val) {
 
                     FwdIter1 src = get<0>(part_begin.get_iterator_tuple());
                     FwdIter2 dst = get<1>(part_begin.get_iterator_tuple());
@@ -133,8 +133,8 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     std::forward<ExPolicy>(policy),
                     make_zip_iterator(first, dest), count, init,
                     // step 1 performs first part of scan algorithm
-                    [op, last, first](
-                        zip_iterator part_begin, std::size_t part_size, T init = T{}) -> T {
+                    [op, last](
+                        zip_iterator part_begin, std::size_t part_size) -> T {
                         auto iters = part_begin.get_iterator_tuple();
                         if (get<0>(iters) != last)
                         {
@@ -146,10 +146,7 @@ namespace hpx { namespace parallel { inline namespace v1 {
                     },
                     // step 2 propagates the partition results from left
                     // to right
-                    [op, first](zip_iterator part_divider, T a, T b)
-                    {
-                        return hpx::util::invoke(op, a, b);
-                    },
+                    hpx::util::unwrapping(op),
                     // step 3 runs final accumulation on each partition
                     std::move(f3),
                     // step 4 use this return value
